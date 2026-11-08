@@ -1,27 +1,59 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { createClient } from '@/lib/supabase/client';
 
-function WelcomeImage() {
+/* Palette: ink #07110F, panel #0D1A17, line #1E322D, mint #2EE6C5, saffron #FFB347, text #E8F2EF, muted #8CA39D */
+
+const FONT = { fontFamily: 'var(--font-display), var(--font-hindi), system-ui, sans-serif' };
+
+function LogoMark({ className = 'size-9' }: { className?: string }) {
   return (
-    <svg
-      width="64"
-      height="64"
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="text-[#00dfc4] mb-4 size-16"
-    >
+    <svg viewBox="0 0 40 40" className={className} fill="none" aria-hidden="true">
+      <rect width="40" height="40" rx="12" fill="#2EE6C5" />
       <path
-        d="M15 24V40C15 40.7957 14.6839 41.5587 14.1213 42.1213C13.5587 42.6839 12.7956 43 12 43C11.2044 43 10.4413 42.6839 9.87868 42.1213C9.31607 41.5587 9 40.7957 9 40V24C9 23.2044 9.31607 22.4413 9.87868 21.8787C10.4413 21.3161 11.2044 21 12 21C12.7956 21 13.5587 21.3161 14.1213 21.8787C14.6839 22.4413 15 23.2044 15 24ZM22 5C21.2044 5 20.4413 5.31607 19.8787 5.87868C19.3161 6.44129 19 7.20435 19 8V56C19 56.7957 19.3161 57.5587 19.8787 58.1213C20.4413 58.6839 21.2044 59 22 59C22.7956 59 23.5587 58.6839 24.1213 58.1213C24.6839 57.5587 25 56.7957 25 56V8C25 7.20435 24.6839 6.44129 24.1213 5.87868C23.5587 5.31607 22.7956 5 22 5ZM32 13C31.2044 13 30.4413 13.3161 29.8787 13.8787C29.3161 14.4413 29 15.2044 29 16V48C29 48.7957 29.3161 49.5587 29.8787 50.1213C30.4413 50.6839 31.2044 51 32 51C32.7956 51 33.5587 50.6839 34.1213 50.1213C34.6839 49.5587 35 48.7957 35 48V16C35 15.2044 34.6839 14.4413 34.1213 13.8787C33.5587 13.3161 32.7956 13 32 13ZM42 21C41.2043 21 40.4413 21.3161 39.8787 21.8787C39.3161 22.4413 39 23.2044 39 24V40C39 40.7957 39.3161 41.5587 39.8787 42.1213C40.4413 42.6839 41.2043 43 42 43C42.7957 43 43.5587 42.6839 44.1213 42.1213C44.6839 41.5587 45 40.7957 45 40V24C45 23.2044 44.6839 22.4413 44.1213 21.8787C43.5587 21.3161 42.7957 21 42 21ZM52 17C51.2043 17 50.4413 17.3161 49.8787 17.8787C49.3161 18.4413 49 19.2044 49 20V44C49 44.7957 49.3161 45.5587 49.8787 46.1213C50.4413 46.6839 51.2043 47 52 47C52.7957 47 53.5587 46.6839 54.1213 46.1213C54.6839 45.5587 55 44.7957 55 44V20C55 19.2044 54.6839 18.4413 54.1213 17.8787C53.5587 17.3161 52.7957 17 52 17Z"
-        fill="currentColor"
+        d="M6 21h7l3-8 5 15 4-11 2 4h7"
+        stroke="#07110F"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
+
+function PulseLine() {
+  return (
+    <svg
+      viewBox="0 0 600 80"
+      preserveAspectRatio="none"
+      className="h-14 w-full"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        className="aarogya-pulse"
+        d="M0 42h150l18-4 14 4h30l14-30 18 62 18-52 12 20h40l16-6 14 6h254"
+        stroke="#FFB347"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pathLength={1}
+      />
+    </svg>
+  );
+}
+
+const DOCTORS = [
+  { name: 'Dr. Meera Sharma', hi: 'डॉ. मीरा शर्मा', field: 'General physician', fee: 500 },
+  { name: 'Dr. Rahul Verma', hi: 'डॉ. राहुल वर्मा', field: 'Paediatrician', fee: 600 },
+  { name: 'Dr. Anjali Gupta', hi: 'डॉ. अंजलि गुप्ता', field: 'Skin specialist', fee: 700 },
+  { name: 'Dr. Imran Khan', hi: 'डॉ. इमरान खान', field: 'Dentist', fee: 400 },
+];
+
+const STEPS = [
+  { title: 'Enter your mobile number', body: 'Type it here, so the agent never has to catch digits by ear.' },
+  { title: 'Talk in Hindi', body: 'Book, move or cancel a visit, or ask for a call back from staff.' },
+  { title: 'Confirm once', body: 'The agent repeats doctor, day, time and name, and acts only after you agree.' },
+];
 
 interface WelcomeViewProps {
   startButtonText: string;
@@ -37,95 +69,201 @@ export const WelcomeView = ({
   onPhoneChange,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const phoneValid = /^[6-9]\d{9}$/.test(phone);
-
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          setUserEmail(user.email ?? null);
-          const metaPhone = user.user_metadata?.phone;
-          if (metaPhone && !phone) {
-            onPhoneChange(metaPhone);
-          }
-        }
-      } catch {
-        // Ignore offline / unauthenticated states
-      }
-    }
-    loadUser();
-  }, []);
+  const showHint = phone.length > 0 && !phoneValid;
 
   return (
-    <div ref={ref}>
-      <section className="bg-background flex flex-col items-center justify-center text-center">
-        <WelcomeImage />
+    <div
+      ref={ref}
+      style={FONT}
+      className="relative h-svh overflow-y-auto scroll-smooth bg-[#07110F] text-[#E8F2EF]"
+    >
+      <style>{`
+        .aarogya-pulse{stroke-dasharray:1;stroke-dashoffset:1;animation:aarogya-draw 3.2s ease-in-out infinite}
+        @keyframes aarogya-draw{0%{stroke-dashoffset:1}55%,100%{stroke-dashoffset:0}}
+        @media (prefers-reduced-motion:reduce){.aarogya-pulse{animation:none;stroke-dashoffset:0}}
+      `}</style>
 
-        <p className="text-foreground max-w-prose pt-1 leading-6 font-medium">
-          Sir Ganga Ram City Hospital: book an appointment by voice
-        </p>
+      {/* soft light behind the hero */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(60%_80%_at_20%_0%,rgba(46,230,197,0.14),transparent_70%)]"
+      />
 
-        {userEmail ? (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#00dfc4]/30 bg-[#00dfc4]/10 px-3.5 py-1 text-xs text-[#00dfc4]">
-            <span>
-              Signed in as <strong className="text-white">{userEmail}</strong>
-            </span>
-            <span>•</span>
-            <Link href="/signup" className="underline hover:text-white">
-              Account
-            </Link>
-          </div>
-        ) : (
-          <div className="mt-3">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#00dfc4]/30 bg-[#00dfc4]/15 px-3.5 py-1 text-xs font-semibold text-[#00dfc4] hover:bg-[#00dfc4]/25 hover:text-white transition"
-            >
-              <span>Patient Sign In / Sign Up</span>
-              <span>→</span>
-            </Link>
-          </div>
-        )}
-
-        <input
-          type="tel"
-          inputMode="numeric"
-          maxLength={10}
-          placeholder="Mobile number (10 digits)"
-          value={phone}
-          onChange={(e) => onPhoneChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
-          className="border-input bg-background mt-5 w-64 rounded-full border px-4 py-2 text-center text-sm focus:border-[#00dfc4] focus:ring-2 focus:ring-[#00dfc4]/20 outline-hidden transition"
-        />
-
-        <Button
-          size="lg"
-          onClick={onStartCall}
-          disabled={!phoneValid}
-          className="mt-3 w-64 rounded-full bg-[#00dfc4] hover:bg-[#00f3d6] text-[#04201c] font-mono text-xs font-bold tracking-wider uppercase shadow-md shadow-[#00dfc4]/20 transition"
-        >
-          {startButtonText}
-        </Button>
-      </section>
-
-      <div className="fixed bottom-5 left-0 flex w-full items-center justify-center">
-        <p className="text-muted-foreground max-w-prose pt-1 text-xs leading-5 font-normal text-pretty md:text-sm">
-          Need help getting set up? Check out the{' '}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://docs.livekit.io/agents/start/voice-ai/"
-            className="underline"
-          >
-            Voice AI quickstart
+      {/* Top bar */}
+      <div className="sticky top-4 z-20 px-4 md:px-6">
+      <header className="mx-auto flex max-w-6xl items-center justify-between rounded-full border border-[#1E322D] bg-[#0D1A17]/85 px-4 py-2.5 backdrop-blur md:px-6">
+        <a href="#top" className="flex items-center gap-3">
+          <LogoMark />
+          <span className="leading-tight">
+            <span className="block text-base font-bold tracking-tight">Aarogya Demo Clinic</span>
+            <span className="block text-xs text-[#8CA39D]">आरोग्य डेमो क्लिनिक</span>
+          </span>
+        </a>
+        <nav className="flex items-center gap-1 text-sm md:gap-2">
+          <a href="#doctors" className="hidden rounded-full px-3 py-2 text-[#8CA39D] transition hover:text-white sm:block">
+            Doctors
           </a>
-          .
-        </p>
+          <a href="#how" className="hidden rounded-full px-3 py-2 text-[#8CA39D] transition hover:text-white sm:block">
+            How it works
+          </a>
+        </nav>
+      </header>
       </div>
+
+      <main id="top" className="relative mx-auto max-w-6xl px-5 pt-14 pb-20 md:px-6 md:pt-20">
+        {/* Hero */}
+        <section className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div>
+            <p className="mb-5 inline-block rounded-2xl border border-[#2EE6C5]/30 bg-[#2EE6C5]/10 px-4 py-1.5 text-sm font-semibold">
+              Powered by <span className="text-[#2EE6C5]">Gnani Prisma</span> (speech-to-text) and{' '}
+              <span className="text-[#2EE6C5]">Timbre</span> (text-to-speech)
+            </p>
+            <h1 className="text-4xl leading-[1.08] font-extrabold tracking-tight text-balance md:text-6xl">
+              Book your clinic visit by talking.
+            </h1>
+            <p lang="hi" className="mt-4 text-xl text-[#FFB347] md:text-2xl">
+              बोलकर अपॉइंटमेंट बुक कीजिए
+            </p>
+            <p className="mt-5 max-w-[46ch] text-base leading-relaxed text-[#8CA39D] md:text-lg">
+              A Hindi voice receptionist for a demo clinic in Delhi. It books, moves and cancels
+              appointments, and passes billing questions to staff.
+            </p>
+
+            {/* Start card */}
+            <div className="mt-9 max-w-md rounded-3xl border border-[#1E322D] bg-[#0D1A17] p-5 shadow-[0_20px_60px_-30px_rgba(46,230,197,0.35)]">
+              <label htmlFor="phone" className="text-sm font-semibold">
+                Your mobile number
+              </label>
+              <div className="mt-2 flex items-center rounded-2xl border border-[#1E322D] bg-[#07110F] transition focus-within:border-[#2EE6C5] focus-within:ring-4 focus-within:ring-[#2EE6C5]/15">
+                <span className="pl-4 text-[#8CA39D]">+91</span>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  maxLength={10}
+                  placeholder="10 digits"
+                  value={phone}
+                  onChange={(e) => onPhoneChange(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && phoneValid) onStartCall();
+                  }}
+                  aria-invalid={showHint}
+                  aria-describedby="phone-help"
+                  className="w-full bg-transparent px-3 py-3.5 text-lg tracking-wide outline-hidden placeholder:text-[#4B625C]"
+                />
+              </div>
+              <p
+                id="phone-help"
+                className={`mt-2 text-xs ${showHint ? 'text-[#FFB347]' : 'text-[#8CA39D]'}`}
+              >
+                {showHint
+                  ? 'Enter 10 digits, starting with 6, 7, 8 or 9.'
+                  : 'This is a demo. Use a fake number, not your own.'}
+              </p>
+              <button
+                type="button"
+                onClick={onStartCall}
+                disabled={!phoneValid}
+                className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#2EE6C5] py-3.5 text-base font-bold text-[#07110F] transition hover:bg-[#5cf0d6] focus-visible:ring-4 focus-visible:ring-[#2EE6C5]/40 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:bg-[#1E322D] disabled:text-[#5E746E]"
+              >
+                <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 3v11m0 0a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Zm-6-3a6 6 0 0 0 12 0M12 17v4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                {startButtonText}
+              </button>
+            </div>
+          </div>
+
+          {/* Example call */}
+          <aside
+            aria-label="Example call"
+            className="overflow-hidden rounded-3xl border border-[#1E322D] bg-[#0D1A17]"
+          >
+            <div className="border-b border-[#1E322D] px-5 pt-4 pb-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold">Example call</span>
+                <span className="flex items-center gap-2 text-[#8CA39D]">
+                  <span className="size-2 rounded-full bg-[#2EE6C5]" />
+                  Hindi
+                </span>
+              </div>
+              <PulseLine />
+            </div>
+            <ol lang="hi" className="space-y-3 px-5 py-5 text-[15px] leading-relaxed">
+              <li className="flex justify-end">
+                <p className="max-w-[80%] rounded-2xl rounded-br-md border border-[#2EE6C5]/30 bg-[#2EE6C5]/10 px-4 py-2.5">
+                  मुझे कल का अपॉइंटमेंट चाहिए
+                </p>
+              </li>
+              <li>
+                <p className="max-w-[80%] rounded-2xl rounded-bl-md border border-[#1E322D] bg-[#112420] px-4 py-2.5">
+                  किस डॉक्टर के लिए अपॉइंटमेंट चाहिए?
+                </p>
+              </li>
+              <li className="flex justify-end">
+                <p className="max-w-[80%] rounded-2xl rounded-br-md border border-[#2EE6C5]/30 bg-[#2EE6C5]/10 px-4 py-2.5">
+                  डॉक्टर इमरान खान
+                </p>
+              </li>
+              <li>
+                <p className="max-w-[80%] rounded-2xl rounded-bl-md border border-[#1E322D] bg-[#112420] px-4 py-2.5">
+                  सुबह 11 बजे, या दोपहर 1 बजकर 20 मिनट। कौन सा समय ठीक रहेगा?
+                </p>
+              </li>
+              <li className="pt-1 text-center font-mono text-xs text-[#FFB347]">
+                Booked: Dr. Imran Khan, 1:20 PM
+              </li>
+            </ol>
+          </aside>
+        </section>
+
+        {/* Doctors */}
+        <section id="doctors" className="mt-28 scroll-mt-28">
+          <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Our demo doctors</h2>
+          <p className="mt-2 text-[#8CA39D]">Made-up people and fees, for this demo only.</p>
+          <ul className="mt-8 divide-y divide-[#1E322D] border-y border-[#1E322D]">
+            {DOCTORS.map((d) => (
+              <li key={d.name} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-5">
+                <div>
+                  <p className="text-lg font-semibold">{d.name}</p>
+                  <p lang="hi" className="text-sm text-[#8CA39D]">
+                    {d.hi}
+                  </p>
+                </div>
+                <p className="text-[#8CA39D]">{d.field}</p>
+                <p className="min-w-20 text-right font-semibold text-[#2EE6C5]">₹{d.fee}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* How it works */}
+        <section id="how" className="mt-28 scroll-mt-28">
+          <h2 className="text-2xl font-bold tracking-tight md:text-3xl">How a call works</h2>
+          <ol className="mt-8 grid gap-10 md:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="relative border-l border-[#1E322D] pl-6">
+                <span className="absolute top-0 -left-[13px] flex size-6 items-center justify-center rounded-full bg-[#2EE6C5] text-xs font-bold text-[#07110F]">
+                  {i + 1}
+                </span>
+                <h3 className="text-lg font-semibold">{s.title}</h3>
+                <p className="mt-2 max-w-[34ch] text-[#8CA39D]">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <footer className="mt-24 border-t border-[#1E322D] pt-6 text-sm text-[#8CA39D]">
+          Demo with fake data only. Speech by Gnani Prisma and Timbre, built on LiveKit Agents.
+        </footer>
+      </main>
     </div>
   );
 };

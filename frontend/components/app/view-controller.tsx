@@ -43,6 +43,13 @@ export function ViewController({
   const { resolvedTheme } = useTheme();
 
   return (
+    <>
+    {isConnected && (
+      <div className="pointer-events-none fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[#2EE6C5]/30 bg-[#0D1A17]/90 px-4 py-1.5 text-center text-xs font-semibold text-[#E8F2EF] backdrop-blur md:text-sm">
+        Powered by <span className="text-[#2EE6C5]">Gnani Prisma</span> (speech-to-text) and{' '}
+        <span className="text-[#2EE6C5]">Timbre</span> (text-to-speech)
+      </div>
+    )}
     <AnimatePresence mode="wait">
       {/* Welcome view */}
       {!isConnected && (
@@ -72,5 +79,6 @@ export function ViewController({
         />
       )}
     </AnimatePresence>
+    </>
   );
 }

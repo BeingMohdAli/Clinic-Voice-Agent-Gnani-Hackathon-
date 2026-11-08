@@ -6,15 +6,40 @@ import aiohttp
 import logging
 import time
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, function_tool, inference
-from livekit.plugins import silero
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, function_tool
+from livekit.plugins import gnani, silero
 
 load_dotenv()
 logger = logging.getLogger("clinic-agent")
 
 CLINIC_API = os.getenv("CLINIC_API_URL", "http://localhost:8000")
 CLINIC_API_KEY = os.getenv("CLINIC_API_KEY", "dev-clinic-key")
+if not os.getenv("GNANI_API_KEY"):
+    logger.warning("GNANI_API_KEY is not set: Gnani speech models will fail. Add it to agent/.env")
+
 PENDING_TTL_SECONDS = 180  # a booking waiting for "yes" expires after this many seconds
+
+
+async def _send_event(kind: str, text: str) -> None:
+    """Send one line to the live console (http://localhost:8000/live). Never breaks a call."""
+    try:
+        timeout = aiohttp.ClientTimeout(total=2)
+        async with aiohttp.ClientSession(timeout=timeout) as http:
+            await http.post(
+                f"{CLINIC_API}/events",
+                json={"kind": kind, "text": text},
+                headers={"Authorization": f"Bearer {CLINIC_API_KEY}"},
+            )
+    except Exception:
+        pass
+
+
+def emit(kind: str, text: str) -> None:
+    """Fire and forget, so the live console never slows the voice down."""
+    try:
+        asyncio.get_running_loop().create_task(_send_event(kind, text))
+    except RuntimeError:
+        pass
 
 
 async def call_api(method: str, path: str, **kwargs):
@@ -27,6 +52,7 @@ async def call_api(method: str, path: str, **kwargs):
             headers={"Authorization": f"Bearer {CLINIC_API_KEY}"},
             **kwargs,
         ) as resp:
+            emit("api", f"API {method} {path} -> {resp.status}")
             return resp.status, await resp.json()
 
 
@@ -49,12 +75,13 @@ class Receptionist(Agent):
     def __init__(self, room):
         super().__init__(
             instructions=(
-                "You are the phone receptionist of Sir Ganga Ram City Hospital in Delhi. "
+                "You are the phone receptionist of Aarogya Demo Clinic, a demo clinic in Delhi. "
                 "Speak in simple, polite Hindi written in Devanagari script. "
                 "LANGUAGE RULE: reply in only ONE language per reply, the language of the caller's latest message. "
                 "If the caller speaks Hindi, even with a few English words, reply fully in Hindi, written only in "
                 "Devanagari, and write English words in Devanagari too (डॉक्टर, अपॉइंटमेंट, ओके). "
-                "If the caller speaks English, reply fully in English with no Hindi words. "
+                "Always reply in simple Hindi in Devanagari, even if the caller speaks English, because the voice is a Hindi voice. "
+                "The speech-to-text writes English words in Devanagari (like 'डू यू हैव ए डेन्टिस्ट'): understand them normally. "
                 "Never mix the two languages or scripts in one reply. "
                 "You are a man: use masculine forms, like 'मैं बता सकता हूँ'. "
                 "Keep every reply to one or two short sentences, because it is spoken aloud. "
@@ -75,24 +102,53 @@ class Receptionist(Agent):
                 "BOOKING FLOW: call get_today first so you know the real date. "
                 "Use list_doctors to find the doctor, then get_available_slots for a date, and offer only two "
                 "or three times that a tool returned. "
-                "Before booking you only need the patient's name. The phone number comes from the web page "
+                "ONE CONFIRMATION ONLY: never ask a confirmation question yourself, and never repeat the details in your own words "
+                "before calling the tool. When the caller has chosen a time and you have the name, call request_booking "
+                "right away; its question is the only confirmation. Same for cancel and reschedule: if the caller clearly "
+                "asks to cancel and there is one appointment, call request_cancel at once without asking first. "
+                "Say weekday and date exactly as a tool gives them; never work out a weekday yourself. "
+                "Before booking you need the patient's name. ALWAYS ask for it yourself with a short question like "
+                "'आपका नाम क्या है?' once the doctor and time are chosen. Never guess a name, never use a "
+                "placeholder like 'patient' or 'caller', and never call request_booking until the caller has "
+                "told you their name in this call. The phone number comes from the web page "
                 "automatically: never ask for it, unless request_booking says it is missing. "
                 "As soon as you have the doctor, slot and patient name, call request_booking immediately, "
                 "which does NOT book yet. Do not ask the confirmation question before calling it. "
-                "The tool result tells you what to ask: ask that ONE yes/no question, keep it under 20 words, "
+                "The tool result tells you what to ask: ask that ONE confirmation question, keep it under 20 words, "
+                "and end it naturally, for example 'क्या मैं बुक कर दूँ?' or 'Shall I book it?'. "
+                "Never say the words 'yes', 'no', 'हाँ' or 'नहीं' as options and never write them with a slash, "
+                "because the question is spoken aloud. "
                 "and STOP and wait. Only if the caller clearly says yes, call confirm_pending_action. "
                 "If they say no or are unsure, call discard_pending_action. "
-                "Never book without that yes. After a successful booking, say the doctor, day and time once and thank them. "
+                "Never book, cancel or move anything without that yes. After a successful booking, say the doctor, day and time once and thank them. "
                 "If a tool says the slot was taken, apologise and offer another time. "
+                "CALLBACK: if you cannot help (billing, reports, complaints, a medical question, or a change that is "
+                "too close to the appointment time), offer a callback from staff. If the caller agrees, ask only for "
+                "their name and a short reason, then call request_callback. Never promise a time for the call. "
+                "CANCEL AND RESCHEDULE: first call get_my_appointments to see the caller's appointments "
+                "(never ask for the phone number; it comes from the web page). If there is more than one, "
+                "ask which one by its TIME (never ask which doctor if they are all with the same doctor). To cancel, call request_cancel. To move one, use get_available_slots for the "
+                "SAME doctor, offer two or three times, then call request_reschedule. These tools do NOT change "
+                "anything yet: ask the ONE confirmation question the tool tells you (never read out 'yes/no' or 'हाँ/नहीं'), STOP and wait, and only after a clear "
+                "yes call confirm_pending_action. If a change is refused because it is too close to the "
+                "appointment time, tell the caller politely that it cannot be changed this late. "
             )
         )
         self._room = room
         self._offered = {}     # slots offered in this call: slot_id -> details
         self._user_turns = 0   # how many times the caller has finished speaking
-        self._pending = None   # a booking that is waiting for the caller's yes
+        self._pending = None   # a change (book, cancel or move) waiting for the caller's yes
+        self._my_appts = {}    # appointments shown to this caller: appointment_id -> details
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
         self._user_turns += 1
+
+    def note_agent_spoke(self) -> None:
+        """Called when the agent has said something. The first thing said after a request_... tool
+        is the confirmation question; only an answer AFTER that question counts as a yes."""
+        if self._pending is not None and not self._pending.get("asked"):
+            self._pending["asked"] = True
+            self._pending["asked_turn"] = self._user_turns
 
     def _caller_phone(self) -> str:
         """The number typed on the web page, sent as a participant attribute."""
@@ -183,7 +239,10 @@ class Receptionist(Agent):
         if not slots:
             text = f"{speakable(body['doctor_name_hi'])} has no free slots on {body['weekday_hi']} {date}."
             if body["next_available"]:
-                text += f" The next free time is {body['next_available']['when_hi']}."
+                nxt = body["next_available"]
+                text += (f" The next free time is {nxt['when_hi']}. Do NOT offer it yet: call get_available_slots again "
+                         f"for that date ({nxt['date']}) so you get real slot_ids. "
+                         "Say the weekday and date exactly as the tool gives them.")
             return text
 
         slots = slots[:: max(1, len(slots) // 6)][:6]  # spread over the day, at most 6
@@ -221,27 +280,125 @@ class Receptionist(Agent):
         if not phone:
             return "The caller's phone number is missing. Ask the caller to say their 10-digit mobile number."
         name = " ".join(patient_name.split())
-        if len(name) < 2:
-            return "Ask the caller for the patient's name."
+        if len(name) < 2 or name.lower() in {"आप", "जी", "मरीज़", "मरीज", "patient", "caller", "user", "unknown"}:
+            return "That is not a real name. Ask the caller: 'आपका नाम क्या है?' and use exactly what they say."
 
         self._pending = {
-            "slot_id": int(slot_id), "doctor_id": slot["doctor_id"], "name": name,
+            "action": "book", "slot_id": int(slot_id), "doctor_id": slot["doctor_id"], "name": name,
             "phone": phone, "reason": reason.strip()[:200],
             "turn": self._user_turns, "at": time.monotonic(),
         }
         logger.info("booking_requested slot_id=%s", slot_id)
         return (
-            "Nothing is booked yet. Ask the caller ONE yes/no question that repeats: "
+            "Nothing is booked yet. Ask the caller ONE short confirmation question (do not say 'yes/no' or 'हाँ/नहीं') that repeats: "
             f"{slot['doctor']}, {slot['weekday']} {slot['date']}, {slot['time']}, "
             f"patient name {name}, phone number ending {' '.join(phone[-4:])}. Then wait for the answer."
         )
 
     @function_tool
+    async def get_my_appointments(self, context: RunContext) -> str:
+        """List the caller's upcoming appointments. Use it before cancelling or moving one,
+        or when the caller asks what appointments they have."""
+        phone = self._caller_phone()
+        if not phone:
+            return "The caller's phone number is missing. Ask the caller to say their 10-digit mobile number."
+        logger.info("tool get_my_appointments")
+        try:
+            status, body = await call_api("GET", "/appointments", params={"phone": phone})
+        except Exception:
+            logger.exception("get_my_appointments failed")
+            return "The clinic system is not reachable. Apologise and ask the caller to try again."
+        if status != 200:
+            return "The clinic system had a problem. Apologise and ask the caller to try again."
+        if not body["appointments"]:
+            return "This caller has no upcoming appointments."
+        self._my_appts = {}
+        lines = []
+        for a in body["appointments"]:
+            self._my_appts[a["appointment_id"]] = {"doctor_id": a["doctor_id"], "phone": phone,
+                                                    "text": f"{speakable(a['doctor_name_hi'])}, {a['when_hi']}"}
+            lines.append(f"appointment_id {a['appointment_id']}: {speakable(a['doctor_name_hi'])}, {a['when_hi']}.")
+        return " ".join(lines)
+
+    @function_tool
+    async def request_cancel(self, context: RunContext, appointment_id: int) -> str:
+        """Start cancelling an appointment. This does NOT cancel it yet.
+
+        Args:
+            appointment_id: An appointment_id returned by get_my_appointments in this call.
+        """
+        appt = self._my_appts.get(int(appointment_id))
+        if not appt:
+            return "That appointment was not listed. Call get_my_appointments first and use one of its ids."
+        self._pending = {"action": "cancel", "appointment_id": int(appointment_id), "phone": appt["phone"],
+                         "turn": self._user_turns, "at": time.monotonic()}
+        logger.info("cancel_requested appointment_id=%s", appointment_id)
+        return (
+            "Nothing is cancelled yet. Ask the caller ONE short confirmation question (do not say 'yes/no' or 'हाँ/नहीं'): do they want to cancel "
+            f"the appointment with {appt['text']}? Then wait for the answer."
+        )
+
+    @function_tool
+    async def request_reschedule(self, context: RunContext, appointment_id: int, new_slot_id: int) -> str:
+        """Start moving an appointment to another time with the SAME doctor. This does NOT move it yet.
+
+        Args:
+            appointment_id: An appointment_id returned by get_my_appointments in this call.
+            new_slot_id: A slot_id returned by get_available_slots for the same doctor.
+        """
+        appt = self._my_appts.get(int(appointment_id))
+        if not appt:
+            return "That appointment was not listed. Call get_my_appointments first and use one of its ids."
+        slot = self._offered.get(int(new_slot_id))
+        if not slot:
+            return "That slot was not offered. Call get_available_slots again and use one of its slot_ids."
+        if slot["doctor_id"] != appt["doctor_id"]:
+            return "The new time must be with the same doctor. Call get_available_slots for that doctor."
+        self._pending = {"action": "reschedule", "appointment_id": int(appointment_id), "phone": appt["phone"],
+                         "new_slot_id": int(new_slot_id), "turn": self._user_turns, "at": time.monotonic()}
+        logger.info("reschedule_requested appointment_id=%s new_slot_id=%s", appointment_id, new_slot_id)
+        return (
+            "Nothing is moved yet. Ask the caller ONE short confirmation question (do not say 'yes/no' or 'हाँ/नहीं'): move the appointment with "
+            f"{appt['text']} to {slot['weekday']} {slot['date']}, {slot['time']}? Then wait for the answer."
+        )
+
+    @function_tool
+    async def request_callback(
+        self, context: RunContext, patient_name: str, reason: str, preferred_time: str = ""
+    ) -> str:
+        """Ask clinic staff to call the caller back. Use it for anything you cannot handle:
+        billing, reports, complaints, medical questions, or changes too close to the appointment.
+
+        Args:
+            patient_name: The caller's name.
+            reason: A short reason for the callback, in the caller's words.
+            preferred_time: Optional, when the caller would like the call.
+        """
+        phone = self._caller_phone()
+        if not phone:
+            return "The caller's phone number is missing. Ask the caller to say their 10-digit mobile number."
+        logger.info("tool request_callback")
+        try:
+            status, body = await call_api("POST", "/callbacks", json={
+                "patient_name": " ".join(patient_name.split()),
+                "patient_phone": phone,
+                "reason": reason.strip()[:300] or "callback requested",
+                "preferred_time": preferred_time.strip()[:100] or None,
+            })
+        except Exception:
+            logger.exception("request_callback failed")
+            return "The clinic system is not reachable, so the callback was not saved. Apologise."
+        logger.info("callback_done http_status=%s", status)
+        if status == 201:
+            return "The callback request is saved. Tell the caller that staff will call them back."
+        return f"The callback was not saved: {body['error']['message']} Apologise and explain briefly."
+
+    @function_tool
     async def confirm_pending_action(self, context: RunContext) -> str:
-        """Book the appointment the caller has just confirmed.
+        """Carry out the booking, cancellation or move that the caller has just confirmed.
 
         Call this ONLY when the caller's latest message is a clear yes. Never call it
-        in the same turn as request_booking.
+        in the same turn as the request_... tool.
         """
         pending = self._pending
         if pending is None:
@@ -249,36 +406,52 @@ class Receptionist(Agent):
         if time.monotonic() - pending["at"] > PENDING_TTL_SECONDS:
             self._pending = None
             return "That request expired. Ask the caller what they want to do."
-        if self._user_turns <= pending["turn"]:
-            logger.warning("booking_blocked reason=no_user_answer")
+        if not pending.get("asked") or self._user_turns <= pending["asked_turn"]:
+            logger.warning("action_blocked reason=no_user_answer")
             return "The caller has not answered yet. Ask the confirmation question and wait."
 
         self._pending = None  # clear first, so it can never run twice
+        action = pending["action"]
         try:
-            status, body = await call_api("POST", "/appointments", json={
-                "patient_name": pending["name"],
-                "patient_phone": pending["phone"],
-                "doctor_id": pending["doctor_id"],
-                "slot_id": pending["slot_id"],
-                "reason": pending["reason"] or None,
-                "language": "hi",
-            })
+            if action == "book":
+                status, body = await call_api("POST", "/appointments", json={
+                    "patient_name": pending["name"],
+                    "patient_phone": pending["phone"],
+                    "doctor_id": pending["doctor_id"],
+                    "slot_id": pending["slot_id"],
+                    "reason": pending["reason"] or None,
+                    "language": "hi",
+                })
+                ok_status = 201
+            elif action == "cancel":
+                status, body = await call_api(
+                    "POST", f"/appointments/{pending['appointment_id']}/cancel",
+                    json={"patient_phone": pending["phone"]})
+                ok_status = 200
+            else:
+                status, body = await call_api(
+                    "POST", f"/appointments/{pending['appointment_id']}/reschedule",
+                    json={"patient_phone": pending["phone"], "new_slot_id": pending["new_slot_id"]})
+                ok_status = 200
         except Exception:
-            logger.exception("booking failed")
-            return "The clinic system is not reachable, so nothing was booked. Apologise."
-        logger.info("booking_done http_status=%s", status)
-        if status == 201:
+            logger.exception("%s failed", action)
+            return "The clinic system is not reachable, so nothing was changed. Apologise."
+        logger.info("action_done action=%s http_status=%s", action, status)
+        if status == ok_status:
+            if action == "cancel":
+                return "Cancelled. Tell the caller the appointment is cancelled, once, and thank them."
+            verb = "Booked" if action == "book" else "Moved"
             return (
-                f"Booked: appointment_id {body['appointment_id']}, {speakable(body['doctor_name_hi'])}, "
+                f"{verb}: appointment_id {body['appointment_id']}, {speakable(body['doctor_name_hi'])}, "
                 f"{body['when_hi']}. Tell the caller this once and thank them."
             )
-        return f"Nothing was booked. Reason: {body['error']['message']} Explain briefly and offer another option."
+        return f"Nothing was changed. Reason: {body['error']['message']} Explain briefly and offer another option."
 
     @function_tool
     async def discard_pending_action(self, context: RunContext) -> str:
-        """Drop the waiting booking when the caller says no or changes their mind."""
+        """Drop the waiting change when the caller says no or changes their mind."""
         self._pending = None
-        return "Okay, nothing was booked."
+        return "Okay, nothing was changed."
 
 
 server = AgentServer()
@@ -294,10 +467,13 @@ server.setup_fnc = prewarm
 
 @server.rtc_session()
 async def entrypoint(ctx: JobContext):
+    agent = Receptionist(room=ctx.room)
     session = AgentSession(
-        stt=inference.STT(model="deepgram/nova-3", language="hi"),
+        # Gnani Prisma (speech-to-text); format="transcribe" writes spoken numbers as digits
+        stt=gnani.STT(language="hi-IN", format="transcribe"),
         llm="openai/gpt-4.1-mini",
-        tts=inference.TTS(model="cartesia/sonic-3", voice="1259b7e3-cb8a-43df-9446-30971a46b8b0", language="hi"),
+        # Gnani Timbre v2.5 (text-to-speech): a male Hindi voice
+        tts=gnani.TTS(voice="Vikrant", model="timbre-v2.5", language="hi-IN", synthesize_method="websocket"),
         vad=ctx.proc.userdata["vad"],
         turn_handling={
             "turn_detection": MultilingualModel(),
@@ -312,11 +488,14 @@ async def entrypoint(ctx: JobContext):
     def on_user_said(ev):
         if ev.is_final:
             logger.info("user_said: %s", ev.transcript)
+            emit("user", ev.transcript)
 
     @session.on("conversation_item_added")
     def on_item_added(ev):
-        if getattr(ev.item, "role", None) == "assistant":
+        if getattr(ev.item, "role", None) == "assistant" and ev.item.text_content:
             logger.info("agent_said: %s", ev.item.text_content)
+            emit("agent", ev.item.text_content)
+            agent.note_agent_spoke()
 
     # If the caller goes quiet, check twice that they are still there, then say goodbye.
     presence_task = None
@@ -339,7 +518,8 @@ async def entrypoint(ctx: JobContext):
             presence_task.cancel()  # the caller came back
             presence_task = None
 
-    await session.start(room=ctx.room, agent=Receptionist(room=ctx.room))
+    emit("sys", "Call started")
+    await session.start(room=ctx.room, agent=agent)
     await session.generate_reply(instructions="Greet the caller in Hindi and ask how you can help.")
 
 

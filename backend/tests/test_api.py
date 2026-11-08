@@ -52,7 +52,7 @@ def test_today_and_doctors_and_faqs(client):
     assert client.get("/doctors", params={"specialty": "दंत"}).json()["doctors"][0]["id"] == 4
     assert client.get("/faqs", params={"topic": "fees"}).status_code == 200
     assert client.get("/faqs", params={"topic": "nope"}).status_code == 404
-    assert "सनराइज" in client.get("/clinic").json()["name_hi"]
+    assert "आरोग्य" in client.get("/clinic").json()["name_hi"]
 
 
 def test_book_with_hindi_name_and_phone_formats(client):

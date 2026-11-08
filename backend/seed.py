@@ -100,11 +100,11 @@ CREATE TABLE audit_log (
 """
 
 CLINIC = {
-    "name": "Sunrise Family Clinic",
-    "name_hi": "सनराइज फैमिली क्लिनिक",
-    "address": "12, Green Park Market, New Delhi",
-    "address_hi": "12, ग्रीन पार्क मार्केट, नई दिल्ली",
-    "phone": "011-4000-0000",
+    "name": "Aarogya Demo Clinic",
+    "name_hi": "आरोग्य डेमो क्लिनिक",
+    "address": "Plot 1, Demo Nagar, New Delhi (fictional address)",
+    "address_hi": "प्लॉट 1, डेमो नगर, नई दिल्ली (काल्पनिक पता)",
+    "phone": "000-000-0000",
     "hours": "Monday to Saturday, 10 AM to 8 PM. Closed on Sundays.",
     "hours_hi": "सोमवार से शनिवार, सुबह 10 बजे से रात 8 बजे तक। रविवार को क्लिनिक बंद रहता है।",
 }
@@ -120,9 +120,9 @@ FAQS = [
     (
         "address",
         "Where is the clinic?",
-        "The clinic is at 12, Green Park Market, New Delhi.",
+        "The clinic is at Plot 1, Demo Nagar, New Delhi. This is a fictional demo address.",
         "क्लिनिक कहाँ है?",
-        "क्लिनिक 12, ग्रीन पार्क मार्केट, नई दिल्ली में है।",
+        "क्लिनिक प्लॉट 1, डेमो नगर, नई दिल्ली में है। यह एक काल्पनिक डेमो पता है।",
     ),
     (
         "fees",

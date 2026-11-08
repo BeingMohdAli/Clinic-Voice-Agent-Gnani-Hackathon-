@@ -288,6 +288,10 @@ def health():
 
 protected = [Depends(require_key)]
 
+from live import make_router  # noqa: E402
+
+app.include_router(make_router(require_key))
+
 
 @app.get("/today", dependencies=protected)
 def today():
