@@ -3,7 +3,7 @@ import localFont from 'next/font/local';
 import { ThemeProvider } from '@/components/app/theme-provider';
 import { ThemeToggle } from '@/components/app/theme-toggle';
 import { cn } from '@/lib/shadcn/utils';
-
+import '@/styles/globals.css';
 
 const publicSans = Public_Sans({
   variable: '--font-public-sans',
